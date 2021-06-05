@@ -1,0 +1,15 @@
+{
+  "name": "interpreter2",
+  "version": "0.1.0",
+  "description": "An interpreter for a my small(ish?) programming language",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Luke Everett",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.1.1",
+    "yargs": "^17.0.1"
+  }
+}

@@ -1,0 +1,58 @@
+/*
+ A program with syntax examples
+*/
+
+// declare a varible
+let val
+let val2
+
+
+// assign varible
+val = ---23
+val2 = val
+
+// maths
+let a = 222.2 + 434.56446 + 1.1
+let b = 221 * 43 / 24 % 3 - 2 + 34 - (45 - 2) + val
+
+// true or false
+let c true
+let d = false
+
+// assign varible to other varible
+let f = a
+let g = -a
+let k = a + a + a - a / a - (a * a) % a
+let l = "string"
+
+let mayBreak = "33" + l
+
+// strings
+let message = "Hello, World!"
+
+// standard output
+print message
+
+// while loop
+let i = 1
+while (i <= 2) repeat 
+    print i
+    i = i + 1
+endwhile
+
+// conditional statement with else block
+if (5 >= 22) then
+    print 5
+else
+    print 22
+endif
+
+// until loop 
+let j = 1
+until (j == 1) repeat
+    print j
+    j = j + 1
+enduntil
+
+// Edmond was here.
+let edmond = "Edmond"
