@@ -6,26 +6,23 @@
 let val
 let val2
 
-
 // assign varible
 val = ---23
 val2 = val
 
 // maths
 let a = 222.2 + 434.56446 + 1.1
-let b = 221 * 43 / 24 % 3 - 2 + 34 - (45 - 2) + val
+let b = 221 * 43 / 24 % 3 - 2 + 34 - (45 - 2)
 
 // true or false
-let c true
+let c = true
 let d = false
 
 // assign varible to other varible
 let f = a
-let g = -a
+let g = +a
 let k = a + a + a - a / a - (a * a) % a
 let l = "string"
-
-let mayBreak = "33" + l
 
 // strings
 let message = "Hello, World!"
@@ -34,8 +31,8 @@ let message = "Hello, World!"
 print message
 
 // while loop
-let i = 1
-while (i <= 2) repeat 
+let i = 0
+while (i <= 10) repeat 
     print i
     i = i + 1
 endwhile
@@ -48,11 +45,8 @@ else
 endif
 
 // until loop 
-let j = 1
-until (j == 1) repeat
+let j = 0
+until (j == 20) repeat
     print j
     j = j + 1
 enduntil
-
-// Edmond was here.
-let edmond = "Edmond"
