@@ -7,6 +7,9 @@ A small, fairly useless interpreter that uses type inference. A work in progress
 - conditional statements
 - stdout
 
+## run
+Clone this repo and navigate to the home directory. To interprete a file run ``node src/index.js <name-of-file>``. Run ``node src/index.js --h`` for a list of optional flags. 
+
 ## examples
 A hello world example (classic)
 ```
