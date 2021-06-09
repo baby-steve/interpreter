@@ -36,11 +36,6 @@ let greeting : string = "howdy"
 ```
 An error (should) be thrown if you try to assign a value to a different type. For example ``let num : real = "error"``. 
 
-supports basic math (``+, -, *, /, %``) and operator precedence
-```
-let math = 1 + 2 - 3 * 4 / 5 % 6 * (3 - 2) // 0.6
-```
-
 there are four primative types: ```integer```, ```float```, ```boolean``` and ```string```
 ```
 let num = 45
@@ -49,6 +44,11 @@ let interesting = false
 let name = "Steve"
 ```
 the types for each varible (should) be infered and should throw errors if you try to operate on different types.
+
+supports basic math (``+, -, *, /, %``) and operator precedence
+```
+let math = 1 + 2 - 3 * 4 / 5 % 6 * (3 - 2) // 0.6
+```
 
 ``while`` loops
 ```
