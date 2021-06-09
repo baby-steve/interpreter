@@ -1,10 +1,12 @@
 # interpreter
-A small, fairly useless interpreter that uses type inference. A work in progress. It currently supports very few features (math, varibles, flow control). It is also buggy and may have many, umm, 'undocumented' features. I do of course have many great plans for this pathetic language (which doesn't even have a name), like functions, scopes, classes and a whole bunch of other cool stuff. 
+This is an interpreter for a language that is functional, inferred and strongly typed. It is under active development and a bit buggy. Currently it supports varibles, flow-control and subroutines. I plan to expand it to include additional features like classes, builtin functions, complex data types, etc.
 
 ## features
+- variables with optional types
 - while loops
 - until loops
 - conditional statements
+- subroutines
 - stdout
 
 ## run
@@ -21,12 +23,18 @@ for comments use ```//``` for single lines and ```/* */``` for multilines
 /* multiline
  comment */
 ```
-Note: multiline comments are a bit buggy   
+Note: comments are a bit buggy   
 
 varibles are declared with the ```let``` keyword
 ``` 
-let varible = 23  
+let variable = 23  
 ```
+The variables type will be inferred by the interpreter. However, types can also optionally be explicitly stated. 
+```
+let num : real
+let greeting : string = "howdy"
+```
+An error (should) be thrown if you try to assign a value to a different type. For example ``let num : real = "error"``. 
 
 supports basic math (``+, -, *, /, %``) and operator precedence
 ```
