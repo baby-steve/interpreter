@@ -1,0 +1,84 @@
+# the following is a mostly inaccurate grammar that is only about half implemented.
+
+program: statements
+
+statements: statement { "\n", statement }
+statement: simple_statement | compound_statement
+
+simple_statement:
+    | declaration_stmt
+    | assignment_stmt
+    | print_stmt
+    | expression_stmt
+   #| return_stmt
+   #| "continue"
+   #| "break"
+compound_statement:
+    | while_stmt
+    | until_stmt
+    | if_stmt
+    | function_def
+
+declaration_stmt: "let" NAME ["=" expression]
+
+assignment_stmt: NAME argument_assign expression
+argument_assign:
+    | "="
+   #| "+=" 
+   #| "-=" 
+   #| "*=" 
+   #| "\=" 
+   #| "%=" 
+
+if_stmt: 
+    | "if" "(" expression ")" "then" block elsif_stmt "endif"
+    | "if" "(" expression ")" "then" block [else_block] "endif"
+elsif_stmt: 
+    | "elsif" "(" expression ")" "then" block [elsif_stmt]
+    | "elsif" "(" expression ")" "then" block [else_block]
+else: "else" block
+unless_stmt: "unless" "(" expression ")" "then" block [else_block] "endunless"
+
+while_stmt: "while" "(" expression ")" "repeat" block "endwhile"
+until_stmt: "until" "(" expression ")" "repeat" block "enduntil"
+function_def: "function" NAME "(" [parameters] ")" "{" block "}"
+
+print_stmt: "print" expression
+
+return_stmt: "return" expression
+
+parameters: param { "," param}
+param: ID ":" type
+type: 
+    | "string"
+    | "real"
+    | "integer"
+    | "boolean"
+
+expression_stmt: expression
+
+expression: boolean_expression
+boolean_expression = boolean_eerm { "or" boolean_term}
+boolean_term = boolean_factor { "and" boolean_factor}
+boolean_factor = [ "not" ] sum [( "=" | "<" | "<=" | ">" | ">=" | "!=") sum ] 
+
+sum:
+    | sum '+' term 
+    | sum '-' term 
+    | term
+term:
+    | term '*' factor 
+    | term '/' factor
+    | term '%' factor 
+    | factor
+factor:
+    | '+' factor 
+    | '-' factor 
+    | power
+power:
+    | primary "**" factor
+    | primary
+primary:
+    | primary "(" arguments ")" # I think a primary is a function call??
+arguments:
+    | #....

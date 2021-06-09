@@ -44,6 +44,7 @@ const TokenType = {
     LBRACE: "{",
     RBRACE: "}",
     COMMA: ",",
+    COLON: ":",
 
     INTEGER_CONST: "INTEGER_CONST",
     REAL_CONST: "REAL_CONST",
@@ -215,7 +216,7 @@ class Lexer {
         return false;
     }
     getNextToken() {
-        while (this.currentChar != null) {
+        while (this.currentChar != null || this.currentChar != undefined) {
             if (this.isSpace()) {
                 this.skipWhitespace();
             }
@@ -311,6 +312,10 @@ class Lexer {
                 this.advance();
                 return new Token(TokenType.COMMA, ',', this.line, this.col, 1);
             }
+            if (this.currentChar == ':') {
+                this.advance();
+                return new Token(TokenType.COLON, ':', this.line, this.col, 1);
+            }
             this.error(this.currentChar);
         }
         return new Token(TokenType.EOF, null);
@@ -373,9 +378,10 @@ class Varible {
 }
 
 class VaribleDeclaration {
-    constructor(token, init = null) {
+    constructor(token, init = null, type = null) {
         this.id = token.value;
         this.init = init;
+        this.type = type;
     }
 }
 
@@ -620,9 +626,10 @@ class Parser {
         return params;
     }
     param() {
-        /* param : type varible */
-        let type = this.type();
+        /* param : variable ":" type */
         let token = this.varible();
+        this.eat(TokenType.COLON);
+        let type = this.type();
         return new Parameter(token, type);
     }
     type() {
@@ -653,15 +660,20 @@ class Parser {
         return new Type(token);
     }
     declarationStmt() {
-        /* declarationStmt : "let" NAME [ "=", expr ] */
+        /* declarationStmt : "let" NAME [ ":" type][ "=" expr ] */
         this.eat(TokenType.LET);
         let token = this.varible();
         let init = null;
+        let type = null;
+        if (this.currentToken.type == TokenType.COLON) {
+            this.eat(TokenType.COLON);
+            type = this.type();
+        }
         if (this.currentToken.type == TokenType.ASSIGN) {
             this.eat(TokenType.ASSIGN);
             init = this.expression();
         }
-        return new VaribleDeclaration(token, init);
+        return new VaribleDeclaration(token, init, type);
     }
     expressionStmt() {
         /* expressionStmt : assignmentStmt | callExpression */
@@ -1057,24 +1069,51 @@ class SemanticAnalyzer extends NodeVisitor {
     }
     visitVaribleDeclaration(node) {
         let varInit = node.init;
+        let varType = node.type != null ? node.type.token.type : null;
 
         // check if the varible was declared with a value, if it wasn't set the type to null
-        let typeName = varInit == null ? "NULL" : this.visit(node.init);
+        //let typeName = varInit == null ? "NULL" : this.visit(node.init); 
+        let typeName;
+        if (varType == null) {
+            if (varInit == null) {
+                typeName = "NULL";
+            } else {
+                typeName = this.visit(node.init);
+            }
+        } else {
+            if (varInit == null) {
+                typeName = varType;
+            } else {
+                let rightType = this.visit(node.init);
+                if (varType != rightType) {
+                    throw new Error("blah blah blah");
+                }
+                typeName = varType
+            }
+        }
+        
         let typeSymbol = this.currentScope.lookup(typeName);
 
         let varName = node.id;
         let varSymbol = new VarSymbol(varName, typeSymbol);
 
         // handle duplicate declarations
-        if (this.currentScope.lookup(varName, true) != null) throw new Error(`duplicate identifier '${varName}' found\n`);
-
+        if (this.currentScope.lookup(varName, true) != null) {
+            throw new Error(`duplicate identifier '${varName}' found\n`);
+        }
         this.currentScope.insert(varSymbol);
     }
     visitAssignExpression(node) {
         let varName = node.left.value;
         let value = this.visit(node.right);
-        // reassign a type to the varible
-        if (this.currentScope.lookup(varName).type.name == "NULL") this.currentScope.lookup(varName).type.name = value;
+        let lookup = this.currentScope.lookup(varName);
+
+        // reassign a type to the varible if it's null
+        if (lookup.type.name == "NULL") lookup.type.name = value; 
+        // throw an error if the variable's type is not the same as the value being assigned to it
+        if (lookup.type.name != value) {
+            throw new Error(`can not assign ${value.toLowerCase()} to a varible of type ${lookup.type.name.toLowerCase()}`);
+        }
         return value;
     }
     visitVarible(node) {
