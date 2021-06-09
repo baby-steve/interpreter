@@ -1,8 +1,3 @@
-/**
- * TODO:
- * 1. parse command line arguments
- * 2. add scoped varibles (for loops, conditionals, functions...)
- */
 const chalk = require('chalk');
 
 const UnexpectedTokenError = require('./error.js').UnexpectedTokenError;
@@ -27,9 +22,15 @@ const TokenType = {
     REPEAT: "REPEAT",
     TRUE: "TRUE",
     FALSE: "FALSE",
+    NULL: "NULL",
+    STRING: "STRING",
+    INTEGER: "INTEGER",
+    REAL: "REAL",
+    BOOLEAN: "BOOLEAN",
     AND: "AND",
     OR: "OR",
     NOT: "NOT",
+    FUNCTION: "FUNCTION",
     END: "END",
 
     PLUS: "+",
@@ -40,6 +41,9 @@ const TokenType = {
     NEWLN: "\n",
     LPAREN: "(",
     RPAREN: ")",
+    LBRACE: "{",
+    RBRACE: "}",
+    COMMA: ",",
 
     INTEGER_CONST: "INTEGER_CONST",
     REAL_CONST: "REAL_CONST",
@@ -127,7 +131,7 @@ class Lexer {
         this.advance();
     }
     singleLineComment() {
-        while (this.currentChar != '\n') {
+        while (this.currentChar != null && this.currentChar != '\n') {
             this.advance();
         }
     }
@@ -295,6 +299,18 @@ class Lexer {
                 this.advance();
                 return new Token(TokenType.RPAREN, ')', this.line, this.col, 1);
             }
+            if (this.currentChar == '{') {
+                this.advance();
+                return new Token(TokenType.LBRACE, '{', this.line, this.col, 1);
+            }
+            if (this.currentChar == '}') {
+                this.advance();
+                return new Token(TokenType.RBRACE, '}', this.line, this.col, 1);
+            }
+            if (this.currentChar == ',') {
+                this.advance();
+                return new Token(TokenType.COMMA, ',', this.line, this.col, 1);
+            }
             this.error(this.currentChar);
         }
         return new Token(TokenType.EOF, null);
@@ -363,6 +379,30 @@ class VaribleDeclaration {
     }
 }
 
+class Type {
+    constructor(token) {
+        this.token = token;
+        this.value = token.value;
+    }
+}
+
+class Parameter {
+    constructor(token, type) {
+        this.token = token;
+        this.value = token.value;
+        this.type = type;
+    }
+}
+
+class FunctionDeclaration {
+    constructor(token, params, body) {
+        this.id = token.value;
+        this.params = params;
+        this.body = body;
+        this.symbol = null;
+    }
+}
+
 class AssignExpression {
     constructor(left, op, right) {
         this.left = left;
@@ -374,6 +414,14 @@ class AssignExpression {
 class ExpressionStatement {
     constructor(expr) {
         this.expr = expr;
+    }
+}
+
+class CallExpression {
+    constructor(callee, args, token) {
+        this.callee = callee;
+        this.args = args;
+        this.token = token;
     }
 }
 
@@ -436,7 +484,7 @@ class Parser {
         if (this.currentToken.type == tokenType) {
             this.currentToken = this.lexer.getNextToken();
         } else {
-            this.error(this.currentToken.type, tokenType);
+            this.error(this.currentToken.value, TokenType[tokenType]);
         }
     }
     program() {
@@ -472,6 +520,7 @@ class Parser {
             | whileStatement
             | untilStatement
             | ifStatement
+            | functionDecl
         */
         let node, val = this.currentToken.type;
         switch (val) {
@@ -493,6 +542,9 @@ class Parser {
             case TokenType.IF:
                 node = this.ifStmt();
                 break;
+            case TokenType.FUNCTION:
+                node = this.functionDecl();
+                break;
             default:
                 return null;
         }
@@ -506,6 +558,7 @@ class Parser {
         this.eat(TokenType.RPAREN);
         this.eat(TokenType.THEN);
         let consequent = this.block();
+        // check if it has an alternate statement, if it  doesn't assign null to alternate
         let alternate = this.currentToken.type == TokenType.ELSE ? this.elseBlock() : null;
         this.eat(TokenType.ENDIF);
         return new IfStatement(test, consequent, alternate);
@@ -542,6 +595,63 @@ class Parser {
         this.eat(TokenType.PRINT);
         return new PrintStatement(this.expression());
     }
+    functionDecl() {
+        /* functionDecl : "function" ID paramList "{" block "}" */
+        this.eat(TokenType.FUNCTION);
+        let token = this.varible();
+        let params = this.paramsList();
+        this.eat(TokenType.LBRACE);
+        let body = this.block();
+        this.eat(TokenType.RBRACE);
+        return new FunctionDeclaration(token, params, body);
+    }
+    paramsList() {
+        /* paramlist : "(" [param { "," param } ] ")" */
+        this.eat(TokenType.LPAREN);
+        let params = [];
+        if (this.currentToken.type != TokenType.RPAREN) {
+            params.push(this.param());
+            while (this.currentToken.type == TokenType.COMMA) {
+                this.eat(TokenType.COMMA);
+                params.push(this.param());
+            }
+        }
+        this.eat(TokenType.RPAREN);
+        return params;
+    }
+    param() {
+        /* param : type varible */
+        let type = this.type();
+        let token = this.varible();
+        return new Parameter(token, type);
+    }
+    type() {
+        /* type :
+            | "string" 
+            | "integer"
+            | "real"
+            | "boolean"
+        */
+        let token = this.currentToken;
+        switch (this.currentToken.type) {
+            case TokenType.INTEGER:
+                this.eat(TokenType.INTEGER);
+                break;
+            case TokenType.STRING:
+                this.eat(TokenType.STRING);
+                break;
+            case TokenType.REAL:
+                this.eat(TokenType.REAL);
+                break;
+            case TokenType.BOOLEAN:
+                this.eat(TokenType.BOOLEAN);
+                break;
+            default:
+                this.error(this.currentToken, "a varible type such as string, int, real or boolean");
+                break;
+        }
+        return new Type(token);
+    }
     declarationStmt() {
         /* declarationStmt : "let" NAME [ "=", expr ] */
         this.eat(TokenType.LET);
@@ -554,8 +664,31 @@ class Parser {
         return new VaribleDeclaration(token, init);
     }
     expressionStmt() {
-        /* expressionStmt : expr */
-        return new ExpressionStatement(this.assignmentStmt());
+        /* expressionStmt : assignmentStmt | callExpression */
+        if (this.lexer.currentChar == "(") {
+            return this.callExpression();
+        } else {
+            return this.assignmentStmt();
+        }
+    }
+    callExpression() {
+        /* callExpression : ID "(" [ expr { "," expr } ] ")" */
+        let callee = this.currentToken.value;
+        let token = this.currentToken;
+        this.eat(TokenType.ID);
+        this.eat(TokenType.LPAREN);
+        let actualParams = []; 
+        if (this.currentToken.type != TokenType.RPAREN) {
+            let node = this.expression();
+            actualParams.push(node);
+        }
+        while (this.currentToken.type == TokenType.COMMA) {
+            this.eat(TokenType.COMMA);
+            let node = this.expression();
+            actualParams.push(node);
+        }
+        this.eat(TokenType.RPAREN);
+        return new CallExpression(callee, actualParams, token);
     }
     assignmentStmt() {
         /* assignmentStmt : identifier "=" expr */
@@ -701,7 +834,6 @@ class Parser {
         return node;
     }
 }
-exports.parser = Parser;
 
 // =====================================================================
 //
@@ -710,34 +842,6 @@ exports.parser = Parser;
 // =====================================================================
 
 class NodeVisitor {
-    /*visit(node) {
-        const METHODS = {
-            "BinaryExpression": this.visitBinaryExpression,//(),
-            "UnaryExpression": this.visitUnaryExpression,//(),
-            "Number": this.visitNumber,//(),
-            "String": this.visitString,//(),
-            "Boolean": this.visitBoolean,//(),
-            "Varible": this.visitVarible,//(),
-            "VaribleDeclaration": this.visitVaribleDeclaration,//(),
-            "AssignExpression": this.visitAssignExpression,//(),
-            "ExpressionStatement": this.visitExpressionStatement,//(),
-            "BlockStatement": this.visitBlockStatement,//(),
-            "PrintStatement": this.visitPrintStatement,//(),
-            "IfStatement": this.visitIfStatement,//(),
-            "WhileStatement": this.visitWhileStatement,//(),
-            "UntilStatement": this.visitUntilStatement,//(),
-            "Program": this.visitProgram,//(),
-        }
-
-        let name = node.constructor.name;
-        console.log("current node: " + name);
-        if (METHODS.hasOwnProperty(name)) {
-            console.log(METHODS);
-            return METHODS[name](node);
-        } else {
-            return this.error(name);
-        }
-    }*/
     visit(node) {
         switch (node.constructor.name) {
             case "BinaryExpression": return this.visitBinaryExpression(node);
@@ -754,6 +858,8 @@ class NodeVisitor {
             case "IfStatement": return this.visitIfStatement(node);
             case "WhileStatement": return this.visitWhileStatement(node);
             case "UntilStatement": return this.visitUntilStatement(node);
+            case "FunctionDeclaration": return this.visitFunctionDeclaration(node);
+            case "CallExpression": return this.visitCallExpression(node);
             case "Program": return this.visitProgram(node);
             default:
                 this.error();
@@ -768,13 +874,14 @@ class NodeVisitor {
 
 // =====================================================================
 //
-//  Symbols, Tables and Semantic Analysis
+//  Symbols, Tables
 //
 // =====================================================================
 
 class Symbol {
-    constructor(name, type) {
+    constructor(name) {
         this.name = name;
+        this.scopeLevel = 0;
     }
 }
 
@@ -785,6 +892,14 @@ class VarSymbol extends Symbol {
     }
 }
 
+class FunctionSymbol extends Symbol {
+    constructor(name) {
+        super(name);
+        this.formalParams = [];
+        this.blockAST = null;
+    }
+}
+
 class BuiltinTypeSymbol extends Symbol {
     constructor(name) {
         super(name);
@@ -792,9 +907,12 @@ class BuiltinTypeSymbol extends Symbol {
 }
 
 class SymbolTable {
-    constructor() {
+    constructor(scopeName, scopeLevel, enclosingScope = null, logScope = false) {
         this.symbols = {}
-        this.initBuiltins();
+        this.scopeName = scopeName;
+        this.scopeLevel = scopeLevel;
+        this.enclosingScope = enclosingScope;
+        this.logScope = logScope;
     }
     initBuiltins() {
         this.insert(new BuiltinTypeSymbol('INTEGER'));
@@ -805,6 +923,7 @@ class SymbolTable {
         this.insert(new BuiltinTypeSymbol('NULL'));
     }
     printContent() {
+        // print out the contents of the symbol table in a slightly readable format
         let header = '\nSymbol table contents';
         let underLine = '====================';
         let lines = [header, underLine + underLine];
@@ -816,29 +935,90 @@ class SymbolTable {
             let type = val.type != undefined ? `, type='${chalk.yellow(val.type.name)}'` : "";
             lines.push(`${ws}${key} : <${chalk.blue(className)}(name='${chalk.green(name)}'${type}>`);
         }
-        //console.log(lines.join('\n'));
+        this.log(lines.join('\n'));
+    }
+    log(message) {
+        if (this.logScope) {
+            console.log(message);
+        }
     }
     insert(symbol) {
-        //console.log(`Insert: <${symbol.name}>`);
+        this.log(`Insert: <${symbol.name}> into ${this.scopeName}`);
+        symbol.scopeLevel = this.scopeLevel;
         this.symbols[symbol.name] = symbol;
     }
-    lookup(name) {
-        //console.log(`Lookup: <${name}>`);
+    lookup(name, currentScopeOnly) {
+        this.log(`Lookup: <${name}> (Scope name: ${this.scopeName})`);
         let symbol = this.symbols[name];
-        return symbol;
+
+        if (symbol != null) {
+            return symbol;
+        }
+        if (currentScopeOnly) {
+            return null;
+        }
+        if (this.enclosingScope != null) {
+            return this.enclosingScope.lookup(name);
+        }
     }
 }
+
+// =====================================================================
+//
+//  Semantic Analysis
+//
+// =====================================================================
 
 class SemanticAnalyzer extends NodeVisitor {
     constructor() {
         super();
-        this.symtab = new SymbolTable();
+        this.currentScope = null;
+        this.logScope = false;
+    }
+    log(message) {
+        if (this.logScope) {
+            console.log(message);
+        }
     }
     visitProgram(node) {
+        this.log("Enter scope: Global");
+        let globalScope = new SymbolTable("global", 1, this.currentScope);
+        globalScope.initBuiltins();
+        this.currentScope = globalScope;
+
         this.visit(node.body);
+
+        this.log(globalScope);
+        this.currentScope = this.currentScope.enclosingScope;
+        this.log("Leave scope: Global");
     }
     visitBlockStatement(node) {
         node.body.forEach(element => { this.visit(element) });
+    }
+    visitFunctionDeclaration(node) {
+        let fnName = node.id;
+        let fnSymbol = new FunctionSymbol(fnName);
+        this.currentScope.insert(fnSymbol, false);
+
+        this.log(`Enter scope: ${fnName}`);
+        let functionScope = new SymbolTable(fnName, this.currentScope.scopeLevel + 1, this.currentScope);
+
+        this.currentScope = functionScope;
+
+        for (let i = 0; i < node.params.length; i++) {
+            let nodeType = this.currentScope.lookup(node.params[i].type.value.toUpperCase());
+            let paramName = node.params[i].value;
+            let varSymbol = new VarSymbol(paramName, nodeType);
+            this.currentScope.insert(varSymbol);
+            fnSymbol.formalParams.push(varSymbol);
+        }
+
+        this.visit(node.body);
+
+        this.log(this.currentScope);
+        this.currentScope = this.currentScope.enclosingScope;
+        this.log(`Leave scope: ${fnName}`);
+        fnSymbol.blockAST = node.body;
     }
     visitWhileStatement(node) {
         this.visit(node.body);
@@ -857,15 +1037,22 @@ class SemanticAnalyzer extends NodeVisitor {
     visitExpressionStatement(node) {
         return this.visit(node.expr);
     }
+    visitCallExpression(node) {
+        for (let i = 0; i < node.args.length; i++) {
+            this.visit(node.args[i]);
+        }
+
+        let fnSymbol = this.currentScope.lookup(node.callee);
+        if (fnSymbol == undefined) throw new Error(`function ${node.callee} is not defined`);
+        node.symbol = fnSymbol;
+    }
     visitUnaryExpression(node) {
         return this.visit(node.expr);
     }
     visitBinaryExpression(node) {
         let val1 = this.visit(node.left);
         let val2 = this.visit(node.right);
-        if (val1 != val2) {
-            throw new Error(`Cannot operate on different types: ${val1}, ${val2}`)
-        }
+        if (val1 != val2) throw new Error(`Cannot operate on different types: ${val1}, ${val2}`);
         return val1;
     }
     visitVaribleDeclaration(node) {
@@ -873,30 +1060,26 @@ class SemanticAnalyzer extends NodeVisitor {
 
         // check if the varible was declared with a value, if it wasn't set the type to null
         let typeName = varInit == null ? "NULL" : this.visit(node.init);
-
-        let typeSymbol = this.symtab.lookup(typeName);
+        let typeSymbol = this.currentScope.lookup(typeName);
 
         let varName = node.id;
         let varSymbol = new VarSymbol(varName, typeSymbol);
 
         // handle duplicate declarations
-        if (this.symtab.lookup(varName) != null) {
-            throw new Error
-                (`duplicate identifier '${varName}' found.\n varibles can only be declared once inside a scope.\n I think so, anyways.\n`)
-        }
+        if (this.currentScope.lookup(varName, true) != null) throw new Error(`duplicate identifier '${varName}' found\n`);
 
-        this.symtab.insert(varSymbol);
+        this.currentScope.insert(varSymbol);
     }
     visitAssignExpression(node) {
         let varName = node.left.value;
         let value = this.visit(node.right);
         // reassign a type to the varible
-        if (this.symtab.lookup(varName).type.name == "NULL") this.symtab.lookup(varName).type.name = value;
+        if (this.currentScope.lookup(varName).type.name == "NULL") this.currentScope.lookup(varName).type.name = value;
         return value;
     }
     visitVarible(node) {
         let varName = node.value;
-        let varSymbol = this.symtab.lookup(varName);
+        let varSymbol = this.currentScope.lookup(varName);
         // check to make sure the varible is not undefined
         if (varSymbol == null) throw new Error(`Symbol not found '${varName}'`);
         return varSymbol.type.name;
@@ -914,6 +1097,9 @@ class SemanticAnalyzer extends NodeVisitor {
             return "REAL";
         }
     }
+    analyze(tree) {
+        this.visitProgram(tree);
+    }
 }
 
 // =====================================================================
@@ -922,14 +1108,88 @@ class SemanticAnalyzer extends NodeVisitor {
 //
 // =====================================================================
 
+class CallStack {
+    constructor() {
+        this.records = [];
+    }
+    push(ar) {
+        this.records.push(ar);
+    }
+    pop() {
+        return this.records.pop();
+    }
+    peek() {
+        return this.records.slice(-1)[0];
+    }
+    getRecord(index) {
+        let ar = this.records[index - 1];
+        if (ar != undefined) {
+            return ar;
+        }
+        return null;
+    }
+    str() {
+        // outputs the call stack in a slightly easier to read way
+        // however not sure that it's working properly
+        let h1 = "CALL STACK";
+        let lines = [h1];
+        this.records.reverse().forEach(ar => {
+            lines.push(ar.str());
+        });
+        return lines.join("\n");
+    }
+}
+
+class ActivationRecord {
+    constructor(name, type, nestingLevel) {
+        this.name = name;
+        this.type = type;
+        this.nestingLevel = nestingLevel;
+        this.members = {}
+    }
+    get(key) {
+        return this.members[key];
+    }
+    set(key, value) {
+        this.members[key] = value;
+    }
+    str() {
+        let line = [`${chalk.blue(this.nestingLevel)}: ${this.type} ${this.name}`];
+        Object.keys(this.members).forEach(key => {
+            let ws = Array(15 - key.length).join(" ");
+            let string = `  ${key} ${ws}: ${chalk.greenBright(JSON.stringify(this.members[key]))}`;
+            line.push(string);
+        });
+        line.push(" ");
+        return line.join("\n");
+    }
+}
+
 class Interpreter extends NodeVisitor {
     constructor(tree) {
         super();
         this.tree = tree;
-        this.GlobalMemory = {};
+        this.callStack = new CallStack();
+        this.logScope = false;
+    }
+    log(message) {
+        if (this.logScope == true) {
+            console.log(message);
+        }
     }
     visitProgram(node) {
+        let name = node.constructor.name;
+        this.log('Enter: PROGRAM');
+        let ar = new ActivationRecord(name, 'PROGRAM', 1);
+        this.callStack.push(ar);
+        this.log(this.callStack);
+
         this.visit(node.body);
+
+        this.log("Leave: PROGRAM");
+        this.log(this.callStack);
+
+        this.callStack.pop();
     }
     visitBlockStatement(node) {
         node.body.forEach(child => { this.visit(child) });
@@ -954,13 +1214,42 @@ class Interpreter extends NodeVisitor {
     visitPrintStatement(node) {
         console.log(this.visit(node.expr));
     }
+    visitFunctionDeclaration(node) {
+        return;
+    }
+    visitCallExpression(node) {
+        let name = node.callee;
+        let symbol = node.symbol;
+        let ar = new ActivationRecord(name, "FUNCTION", symbol.scopeLevel + 1);
+
+        let formalParams = symbol.formalParams;
+        let actualParams = node.args;
+
+        for (let i = 0; i < actualParams.length; i++) {
+            let paramSymbol = formalParams[i];
+            let argumentNode = actualParams[i];
+            ar.set(paramSymbol.name, this.visit(argumentNode));
+        }
+
+        this.callStack.push(ar);
+
+        this.log(`Enter: FUNCTION ${name}`);
+        this.log(this.callStack);
+
+        this.visit(symbol.blockAST);
+
+        this.log(`Leave: FUNCTION ${name}`);
+        this.log(this.callStack);
+        this.callStack.pop();
+    }
     visitExpressionStatement(node) {
         this.visit(node.expr);
     }
     visitAssignExpression(node) {
         let varName = node.left.value;
         let varValue = this.visit(node.right);
-        this.GlobalMemory[varName] = varValue;
+        let ar = this.callStack.peek();
+        ar.set(varName, varValue);
     }
     visitUnaryExpression(node) {
         let op = node.op.type;
@@ -1003,11 +1292,21 @@ class Interpreter extends NodeVisitor {
     visitVaribleDeclaration(node) {
         let varName = node.id;
         let varValue = node.init != null ? this.visit(node.init) : null;
-        this.GlobalMemory[varName] = varValue;
+        let ar = this.callStack.peek();
+        ar.set(varName, varValue);
     }
     visitVarible(node) {
         let varName = node.value;
-        let varValue = this.GlobalMemory[varName];
+        let ar = this.callStack.peek();
+        let varValue = ar.get(varName);
+        if (varValue == undefined) {
+            let level = ar.nestingLevel - 1;
+            while (level > 0) {
+                let prevAR = this.callStack.getRecord(level);
+                varValue = prevAR.get(varName);
+                level = prevAR.nestingLevel - 1;
+            }
+        }
         return varValue;
     }
     visitBoolean(node) {
@@ -1026,13 +1325,13 @@ class Interpreter extends NodeVisitor {
         return this.visit(this.tree);
     }
 }
-exports.interpreter = Interpreter;
 
-exports.tokenTypes = TokenType; 
+// a bunch of (messy) exports. feel like I should change this
+
+exports.tokenTypes = TokenType;
 exports.token = Token;
+exports.parser = Parser;
 exports.lexer = Lexer;
-exports.semanticAnalyzer = SemanticAnalyzer;
-
 exports.nodes = {
     number: Number,
     binOp: BinaryExpression,
@@ -1051,7 +1350,8 @@ exports.nodes = {
     program: Program,
 }
 exports.nodeVisitor = NodeVisitor;
-
 exports.symbol = Symbol;
 exports.varSymbol = VarSymbol;
 exports.builtinTypeSymbol = BuiltinTypeSymbol;
+exports.semanticAnalyzer = SemanticAnalyzer;
+exports.interpreter = Interpreter;
