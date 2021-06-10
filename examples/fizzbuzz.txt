@@ -1,0 +1,17 @@
+function fizzBuzz(start: integer, last: integer) {
+    let i = start
+    while (i < last) repeat
+        if (i % 15 == 0) then
+            print "FizzBuzz"
+        else if (i % 3 == 0) then
+            print "Fizz"
+        else if (i % 5 == 0) then
+            print "Buzz" 
+        else 
+            print i
+        endif
+        i = i + 1
+    endwhile
+}
+
+fizzBuzz(1, 100)
