@@ -31,6 +31,7 @@ const TokenType = {
     OR: "OR",
     NOT: "NOT",
     FUNCTION: "FUNCTION",
+    RETURN: "RETURN",
     END: "END",
 
     PLUS: "+",
@@ -443,6 +444,12 @@ class PrintStatement {
     }
 }
 
+class ReturnStatement {
+    constructor(expr) {
+        this.expr = expr;
+    }
+}
+
 class IfStatement {
     constructor(test, consequent, alternate) {
         this.test = test;
@@ -551,6 +558,9 @@ class Parser {
             case TokenType.FUNCTION:
                 node = this.functionDecl();
                 break;
+            case TokenType.RETURN:
+                node = this.returnStmt();
+                break;
             default:
                 return null;
         }
@@ -623,6 +633,11 @@ class Parser {
         /* printStmt : "print" expr */
         this.eat(TokenType.PRINT);
         return new PrintStatement(this.expression());
+    }
+    returnStmt() {
+        this.eat(TokenType.RETURN);
+        let expr = this.expression();
+        return new ReturnStatement(expr);
     }
     functionDecl() {
         /* functionDecl : "function" ID paramList "{" block "}" */
@@ -875,9 +890,15 @@ class Parser {
                 node = this.sum();
                 this.eat(TokenType.RPAREN);
                 return node;
+            case TokenType.ID:
+                if (this.lexer.currentChar == "(") {
+                    return this.callExpression();
+                } else {
+                    return this.varible();
+                }
             default:
-                node = this.varible();
-                return node;
+                this.error();
+                break
         }
     }
     empty() {
@@ -912,6 +933,7 @@ class NodeVisitor {
             case "LogicalExpression": return this.visitLogicalExpression(node);
             case "ExpressionStatement": return this.visitExpressionStatement(node);
             case "BlockStatement": return this.visitBlockStatement(node);
+            case "ReturnStatement": return this.visitReturnStatement(node);
             case "PrintStatement": return this.visitPrintStatement(node);
             case "IfStatement": return this.visitIfStatement(node);
             case "WhileStatement": return this.visitWhileStatement(node);
@@ -951,10 +973,11 @@ class VarSymbol extends Symbol {
 }
 
 class FunctionSymbol extends Symbol {
-    constructor(name) {
+    constructor(name, type) {
         super(name);
         this.formalParams = [];
         this.blockAST = null;
+        this.type = type;
     }
 }
 
@@ -1051,7 +1074,9 @@ class SemanticAnalyzer extends NodeVisitor {
         this.log("Leave scope: Global");
     }
     visitBlockStatement(node) {
-        node.body.forEach(element => { this.visit(element) });
+        node.body.forEach(element => {
+            this.visit(element);
+        });
     }
     visitFunctionDeclaration(node) {
         let fnName = node.id;
@@ -1073,6 +1098,8 @@ class SemanticAnalyzer extends NodeVisitor {
 
         this.visit(node.body);
 
+        if (fnSymbol.type == undefined) fnSymbol.type = "NULL";
+
         this.log(this.currentScope);
         this.currentScope = this.currentScope.enclosingScope;
         this.log(`Leave scope: ${fnName}`);
@@ -1088,6 +1115,13 @@ class SemanticAnalyzer extends NodeVisitor {
         this.visit(node.test);
         this.visit(node.consequent);
         if (node.alternate != null) this.visit(node.alternate);
+    }
+    visitReturnStatement(node) {
+        if (this.currentScope.scopeLevel == 1) throw new Error("cannot have a return statement outside of a function");
+        let val = this.visit(node.expr);
+        let scopeName = this.currentScope.scopeName;
+        this.currentScope.enclosingScope.symbols[scopeName].type = val;
+        return val;
     }
     visitPrintStatement(node) {
         this.visit(node.expr);
@@ -1281,27 +1315,38 @@ class Interpreter extends NodeVisitor {
         this.callStack.pop();
     }
     visitBlockStatement(node) {
-        node.body.forEach(child => { this.visit(child) });
+        let returnValue;
+        node.body.some(child => {
+            let val = this.visit(child);
+            if (val != undefined) return returnValue = val;
+        });
+        return returnValue;
     }
     visitWhileStatement(node) {
         while (this.visit(node.test)) {
-            this.visit(node.body);
+            let returnValue = this.visit(node.body);
+            if (returnValue != undefined) return returnValue;  
         }
     }
     visitUntilStatement(node) {
         while (!(this.visit(node.test))) {
-            this.visit(node.body);
+            let returnValue = this.visit(node.body);
+            if (returnValue != undefined) return returnValue;  
         }
     }
     visitIfStatement(node) {
         if (this.visit(node.test)) {
-            this.visit(node.consequent);
+            return this.visit(node.consequent);
         } else if (node.alternate != null) {
-            this.visit(node.alternate);
+            return this.visit(node.alternate);
         }
     }
     visitPrintStatement(node) {
         console.log(this.visit(node.expr));
+    }
+    visitReturnStatement(node) {
+        let returnValue = this.visit(node.expr);
+        return returnValue;
     }
     visitFunctionDeclaration(node) {
         return;
@@ -1325,11 +1370,13 @@ class Interpreter extends NodeVisitor {
         this.log(`Enter: FUNCTION ${name}`);
         this.log(this.callStack);
 
-        this.visit(symbol.blockAST);
+        let returnVal = this.visit(symbol.blockAST);
 
         this.log(`Leave: FUNCTION ${name}`);
         this.log(this.callStack);
         this.callStack.pop();
+
+        return returnVal;
     }
     visitExpressionStatement(node) {
         this.visit(node.expr);
