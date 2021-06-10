@@ -58,7 +58,7 @@ type:
 expression_stmt: expression
 
 expression: boolean_expression
-boolean_expression = boolean_eerm { "or" boolean_term}
+boolean_expression = boolean_term { "or" boolean_term}
 boolean_term = boolean_factor { "and" boolean_factor}
 boolean_factor = [ "not" ] sum [( "=" | "<" | "<=" | ">" | ">=" | "!=") sum ] 
 

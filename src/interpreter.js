@@ -557,22 +557,45 @@ class Parser {
         return node;
     }
     ifStmt() {
-        /* ifStmt : "if" "(" expr ")" "then" block [elseBlock] "endif" */
+        /* if_stmt: 
+            | "if" "(" expression ")" "then" block elsif_stmt "endif"
+            | "if" "(" expression ")" "then" block [else_block] "endif" 
+        */
         this.eat(TokenType.IF);
         this.eat(TokenType.LPAREN);
         let test = this.expression();
         this.eat(TokenType.RPAREN);
         this.eat(TokenType.THEN);
         let consequent = this.block();
-        // check if it has an alternate statement, if it  doesn't assign null to alternate
-        let alternate = this.currentToken.type == TokenType.ELSE ? this.elseBlock() : null;
+        let alternate;
+        if (this.currentToken.type == TokenType.ELSE) {
+            this.eat(TokenType.ELSE);
+            alternate = this.currentToken.type == TokenType.IF ? this.elseIfStmt() : this.block();
+        } else {
+            alternate = null;
+        }
         this.eat(TokenType.ENDIF);
         return new IfStatement(test, consequent, alternate);
     }
-    elseBlock() {
-        /* elseBlock : "else" block */
-        this.eat(TokenType.ELSE);
-        return this.block();
+    elseIfStmt() {
+        /* elsif_stmt: 
+            | "elsif" "(" expression ")" "then" block [elsif_stmt]
+            | "elsif" "(" expression ")" "then" block [else_block] 
+        */
+        this.eat(TokenType.IF);
+        this.eat(TokenType.LPAREN);
+        let test = this.expression();
+        this.eat(TokenType.RPAREN);
+        this.eat(TokenType.THEN);
+        let consequent = this.block();
+        let alternate;
+        if (this.currentToken.type == TokenType.ELSE) {
+            this.eat(TokenType.ELSE);
+            alternate = this.currentToken.type == TokenType.IF ? this.elseIfStmt() : this.block();
+        } else {
+            alternate = null;
+        }
+        return new IfStatement(test, consequent, alternate);
     }
     whileStmt() {
         /* whileStmt : "while" "(" expr ")" block "endwhile" */
@@ -689,7 +712,7 @@ class Parser {
         let token = this.currentToken;
         this.eat(TokenType.ID);
         this.eat(TokenType.LPAREN);
-        let actualParams = []; 
+        let actualParams = [];
         if (this.currentToken.type != TokenType.RPAREN) {
             let node = this.expression();
             actualParams.push(node);
@@ -886,7 +909,7 @@ class NodeVisitor {
             case "Varible": return this.visitVarible(node);
             case "VaribleDeclaration": return this.visitVaribleDeclaration(node);
             case "AssignExpression": return this.visitAssignExpression(node);
-            case "LogicalExpression" : return this.visitLogicalExpression(node);
+            case "LogicalExpression": return this.visitLogicalExpression(node);
             case "ExpressionStatement": return this.visitExpressionStatement(node);
             case "BlockStatement": return this.visitBlockStatement(node);
             case "PrintStatement": return this.visitPrintStatement(node);
@@ -1118,7 +1141,7 @@ class SemanticAnalyzer extends NodeVisitor {
                 typeName = varType
             }
         }
-        
+
         let typeSymbol = this.currentScope.lookup(typeName);
 
         let varName = node.id;
@@ -1136,7 +1159,7 @@ class SemanticAnalyzer extends NodeVisitor {
         let lookup = this.currentScope.lookup(varName);
 
         // reassign a type to the varible if it's null
-        if (lookup.type.name == "NULL") lookup.type.name = value; 
+        if (lookup.type.name == "NULL") lookup.type.name = value;
         // throw an error if the variable's type is not the same as the value being assigned to it
         if (lookup.type.name != value) {
             throw new Error(`can not assign ${value.toLowerCase()} to a varible of type ${lookup.type.name.toLowerCase()}`);
