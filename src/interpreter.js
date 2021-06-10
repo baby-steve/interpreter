@@ -718,7 +718,29 @@ class Parser {
     }
     expression() {
         /* expression : boolean_expression */
-        return this.booleanFactor();
+        return this.booleanExpression();
+    }
+    booleanExpression() {
+        /* boolean_expression : boolean_factor {"and" booleanFactor} */
+        let node = this.booleanTerm();
+        let val = this.currentToken.type;
+        while (val == TokenType.OR) {
+            let token = this.currentToken;
+            this.eat(TokenType.OR);
+            return new LogicalExpression(node, token, this.booleanExpression());
+        }
+        return node;
+    }
+    booleanTerm() {
+        /* boolean_expression : boolean_factor {"and" booleanFactor} */
+        let node = this.booleanFactor();
+        let val = this.currentToken.type;
+        while (val == TokenType.AND) {
+            let token = this.currentToken;
+            this.eat(TokenType.AND);
+            return new LogicalExpression(node, token, this.booleanTerm());
+        }
+        return node;
     }
     booleanFactor() {
         /* boolean_factor = sum [( "=" | "<" | "<=" | ">" | ">=" | "!=") sum ] */
@@ -864,6 +886,7 @@ class NodeVisitor {
             case "Varible": return this.visitVarible(node);
             case "VaribleDeclaration": return this.visitVaribleDeclaration(node);
             case "AssignExpression": return this.visitAssignExpression(node);
+            case "LogicalExpression" : return this.visitLogicalExpression(node);
             case "ExpressionStatement": return this.visitExpressionStatement(node);
             case "BlockStatement": return this.visitBlockStatement(node);
             case "PrintStatement": return this.visitPrintStatement(node);
@@ -1045,6 +1068,10 @@ class SemanticAnalyzer extends NodeVisitor {
     }
     visitPrintStatement(node) {
         this.visit(node.expr);
+    }
+    visitLogicalExpression(node) {
+        this.visit(node.left);
+        this.visit(node.right);
     }
     visitExpressionStatement(node) {
         return this.visit(node.expr);
@@ -1283,6 +1310,17 @@ class Interpreter extends NodeVisitor {
     }
     visitExpressionStatement(node) {
         this.visit(node.expr);
+    }
+    visitLogicalExpression(node) {
+        let left = this.visit(node.left);
+        let right = this.visit(node.right);
+
+        if (node.op.type == TokenType.AND) {
+            return left && right;
+        } else if (node.op.type == TokenType.OR) {
+            return left || right;
+        }
+        return false;
     }
     visitAssignExpression(node) {
         let varName = node.left.value;
