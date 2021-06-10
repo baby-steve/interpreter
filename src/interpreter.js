@@ -104,7 +104,7 @@ class Lexer {
         }
 
         this.pos += 1;
-        if (this.pos > this.text.length) {
+        if (this.pos >= this.text.length) {
             this.currentChar = null;
         } else {
             this.currentChar = this.text[this.pos];
@@ -125,14 +125,14 @@ class Lexer {
         }
     }
     multiLineComment() {
-        while (this.peek() != '/' && this.currentChar != '*') {
+        while (this.currentChar != '*' || this.peek() != '/' ) {
             this.advance();
         }
         this.advance();
         this.advance();
     }
     singleLineComment() {
-        while (this.currentChar != null && this.currentChar != '\n') {
+        while (this.currentChar != null && this.currentChar != undefined && this.currentChar != '\n') {
             this.advance();
         }
     }
@@ -176,8 +176,10 @@ class Lexer {
         return token;
     }
     string() {
+        let type = this.currentChar;
+        this.advance();
         let result = '';
-        while (this.currentChar != null && this.currentChar != '\"') {
+        while (this.currentChar != null && this.currentChar != type) {
             result += this.currentChar;
             this.advance();
         }
@@ -216,7 +218,7 @@ class Lexer {
         return false;
     }
     getNextToken() {
-        while (this.currentChar != null || this.currentChar != undefined) {
+        while (this.currentChar != null && this.currentChar != undefined) {
             if (this.isSpace()) {
                 this.skipWhitespace();
             }
@@ -231,14 +233,15 @@ class Lexer {
                     this.advance();
                     this.advance();
                     this.multiLineComment();
+                    continue;
                 } else if (this.peek() == '/') {
                     this.advance();
                     this.advance();
                     this.singleLineComment();
+                    continue;
                 }
             }
-            if (this.currentChar == '\"') {
-                this.advance();
+            if (this.currentChar == '\"' || this.currentChar == "\'") {
                 return this.string();
             }
             if (this.currentChar == '=') {
