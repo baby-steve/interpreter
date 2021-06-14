@@ -80,5 +80,20 @@ power:
     | primary
 primary:
     | primary "(" arguments ")" # I think a primary is a function call??
+    | primary '[' expression ']'
+    | primary '.' NAME
+    | atom
 arguments:
     | #....
+
+atom:
+    | NAME
+    | NUMBER
+    | STRING
+    | 'true'
+    | 'false'
+    | 'null'
+    | array
+
+array:
+    | '[' [ expression { ',' expression} ] ']'
